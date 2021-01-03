@@ -1,0 +1,195 @@
+In [54]: import cv2
+         import os
+
+         data_path='Datasets'
+         categories=os.listdir(data_path)
+         labels=[i for i in range(len(categories))]
+
+         label_dict=dict(zip(categories,labels))
+
+         print(label_dict)
+         print(categories)
+         print(labels)
+
+         {'man': 0, 'women': 1}
+         ['man', 'women']
+         [0, 1]
+
+
+In [55]: img_size=32
+         data=[]
+         target=[]
+
+         facedata = "haarcascade_frontalface_default.xml"
+         cascade = cv2.CascadeClassifier(facedata)
+
+
+         for category in categories:
+             folder_path=os.path.join(data_path,category)
+             img_names=os.listdir(folder_path)
+        
+             for img_name in img_names:
+                 img_path=os.path.join(folder_path,img_name)
+                 img=cv2.imread(img_path)
+                 faces = cascade.detectMultiScale(img)
+                 try:
+                    for f in faces:
+                        x, y, w, h = [v for v in f]
+                        sub_face = img[y:y + h, x:x + w]
+                        gray=cv2.cvtColor(sub_face,cv2.COLOR_BGR2GRAY)           
+                        resized=cv2.resize(gray,(img_size,img_size))
+                        data.append(resized)
+                        target.append(label_dict[category])
+                 except Exception as e:
+                     print('Exception:',e)
+
+
+In [56]: import numpy as np
+         import warnings
+         warnings.filterwarnings('ignore')
+         data=np.array(data)/255.0
+         data=np.reshape(data,(data.shape[0],img_size,img_size,1))
+         target=np.array(target)
+
+         from keras.utils import np_utils
+
+         new_target=np_utils.to_categorical(target)
+
+         np.save('./training/data',data)
+         np.save('./training/target',new_target)
+
+
+In [57]: import numpy as np
+
+         data=np.load('./training/data.npy')
+         target=np.load('./training/target.npy')
+
+
+In [58]: from keras.models import Sequential
+         from keras.layers import Dense,Activation,Flatten,Dropout
+         from keras.layers import Conv2D,MaxPooling2D
+         from keras.callbacks import ModelCheckpoint
+
+
+         noOfFilters=64
+         sizeOfFilter1=(3,3)
+         sizeOfFilter2=(3,3)
+         sizeOfPool=(2,2)
+         noOfNode=64
+
+
+
+         model=Sequential()
+         model.add((Conv2D(32, sizeOfFilter1, input_shape=data.shape[1:],activation='relu')))
+         model.add((Conv2D(32, sizeOfFilter1,activation='relu')))
+         model.add(MaxPooling2D(pool_size=sizeOfPool))
+
+         model.add((Conv2D(64, sizeOfFilter2,activation='relu')))
+         model.add((Conv2D(64, sizeOfFilter2,activation='relu')))
+         model.add(MaxPooling2D(pool_size=sizeOfPool))
+         model.add(Dropout(0.5))
+
+
+         model.add(Flatten())
+         model.add(Dense(noOfNode, activation='relu'))
+         model.add(Dropout(0.5))
+         model.add(Dense(2, activation='softmax'))
+
+
+         model.compile(loss='categorical_crossentropy',optimizer='adam',metrics=['accuracy'])
+
+
+In [59]: from sklearn.model_selection import train_test_split
+
+         train_data,test_data,train_target,test_target=train_test_split(data,target,test_size=0.1)
+
+
+In [60]: checkpoint = ModelCheckpoint('./training/model-{epoch:03d}.model',monitor='val_loss',verbose=0,save_best_only=True,mode='auto')
+         history=model.fit(train_data,train_target,epochs=20,callbacks=[checkpoint],validation_split=0.2)
+
+         Train on 588 samples, validate on 148 samples
+         Epoch 1/20
+         588/588 [==============================] - 7s 12ms/step - loss: 0.6968 - acc: 0.5153 - val_loss: 0.6927 - val_acc: 0.5608
+         Epoch 2/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.6963 - acc: 0.5017 - val_loss: 0.6862 - val_acc: 0.6014
+         Epoch 3/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.6933 - acc: 0.5153 - val_loss: 0.6848 - val_acc: 0.6014
+         Epoch 4/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.6908 - acc: 0.5272 - val_loss: 0.6819 - val_acc: 0.6014
+         Epoch 5/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.6857 - acc: 0.5748 - val_loss: 0.6799 - val_acc: 0.6689
+         Epoch 6/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.6716 - acc: 0.6259 - val_loss: 0.6669 - val_acc: 0.6284
+         Epoch 7/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.6521 - acc: 0.6412 - val_loss: 0.6064 - val_acc: 0.7365
+         Epoch 8/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.5769 - acc: 0.7092 - val_loss: 0.5580 - val_acc: 0.7500
+         Epoch 9/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.5529 - acc: 0.7364 - val_loss: 0.5702 - val_acc: 0.7635
+         Epoch 10/20
+         588/588 [==============================] - 5s 9ms/step - loss: 0.4996 - acc: 0.7687 - val_loss: 0.5300 - val_acc: 0.7838
+         Epoch 11/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.4896 - acc: 0.7772 - val_loss: 0.4888 - val_acc: 0.7973
+         Epoch 12/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.4897 - acc: 0.7823 - val_loss: 0.5192 - val_acc: 0.7838
+         Epoch 13/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.4003 - acc: 0.8452 - val_loss: 0.4294 - val_acc: 0.8041
+         Epoch 14/20
+         588/588 [==============================] - 5s 9ms/step - loss: 0.3404 - acc: 0.8503 - val_loss: 0.4088 - val_acc: 0.8108
+         Epoch 15/20
+         588/588 [==============================] - 5s 9ms/step - loss: 0.3138 - acc: 0.8741 - val_loss: 0.4097 - val_acc: 0.8311
+         Epoch 16/20
+         588/588 [==============================] - 6s 10ms/step - loss: 0.3623 - acc: 0.8452 - val_loss: 0.4220 - val_acc: 0.8311
+         Epoch 17/20
+         588/588 [==============================] - 5s 9ms/step - loss: 0.2918 - acc: 0.8810 - val_loss: 0.4104 - val_acc: 0.8514
+         Epoch 18/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.2445 - acc: 0.8980 - val_loss: 0.4088 - val_acc: 0.8514
+         Epoch 19/20
+         588/588 [==============================] - 5s 9ms/step - loss: 0.2422 - acc: 0.8963 - val_loss: 0.4510 - val_acc: 0.8514
+         Epoch 20/20
+         588/588 [==============================] - 5s 8ms/step - loss: 0.2253 - acc: 0.9065 - val_loss: 0.4467 - val_acc: 0.8108
+
+
+In [61]: from keras.models import load_model
+         import cv2
+         import numpy as np
+
+
+In [62]: model = load_model('./training/model-007.model')
+
+         face_clsfr=cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+         cap=cv2.VideoCapture(0)
+
+         labels_dict={0:'Male',1:'Female'}
+         color_dict={0:(0,0,255),1:(0,255,0)}
+
+
+In [63]: while(True):
+
+             ret,img=cap.read()
+             gray=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+             faces=face_clsfr.detectMultiScale(gray,1.3,3)  
+
+             for (x,y,w,h) in faces:
+    
+                 face_img=gray[y:y+w,x:x+w]
+                 resized=cv2.resize(face_img,(32,32))
+                 normalized=resized/255.0
+                 reshaped=np.reshape(normalized,(1,32,32,1))
+                 result=model.predict(reshaped)
+
+                 label=np.argmax(result,axis=1)[0]
+      
+                 cv2.rectangle(img,(x,y),(x+w,y+h),color_dict[label],2)
+                 cv2.rectangle(img,(x,y-40),(x+w,y),color_dict[label],-1)
+                 cv2.putText(img, labels_dict[label], (x, y-10),cv2.FONT_HERSHEY_SIMPLEX,0.8,(255,255,255),2)
+        
+        
+              cv2.imshow('Result',img)
+              k=cv2.waitKey(1)
+    
+              if k==ord("q"):
+                  break
+        
+         cv2.destroyAllWindows()
+         cap.release()
